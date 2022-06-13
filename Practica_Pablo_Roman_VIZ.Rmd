@@ -459,7 +459,6 @@ sort(colSums(is.na(patientData_cat)/length(patientData_cat$bmi_cat)*100), decrea
 values_gender = unique(patientData_cat$gender[!is.na(patientData_cat$gender)])
 mode_gender = values_gender[which.max(tabulate(match(patientData_cat$gender, values_gender)))]
 patientData_cat$gender[is.na(patientData_cat$gender)] = mode_gender
-patientData_cat
 ```
 
 <span style="color:blue">Imputados ambos tipos de variables, podemos guardar el set de datos final en un fichero llamado "imputed_patientData.csv".</span>
