@@ -1,0 +1,471 @@
+---
+title: 'Visualización de Datos: Práctica 2'
+author: "Autor: Pablo Román-Naranjo Varela"
+date: "Junio 2022"
+output:
+  html_document:
+    highlight: zenburn
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_packages, message=FALSE, warning=FALSE, include=FALSE}
+if (!require("devtools")) install.packages("devtools"); library(devtools)
+if (!require('Stat2Data')) install.packages('Stat2Data'); library(Stat2Data)
+if (!require('dplyr')) install.packages('dplyr'); library(dplyr)
+if (!require('ggplot2')) install.packages('ggplot2'); library(ggplot2)
+if (!require('knitr')) install.packages('knitr'); library(knitr)
+if (!require('DT')) install.packages('DT'); library(DT)
+if (!require('stringr')) install.packages('stringr'); library(stringr)
+if (!require('ggExtra')) install.packages('ggExtra'); library(ggExtra)
+if (!require('cowplot')) install.packages('cowplot'); library(cowplot)
+if (!require('data.table')) install.packages('data.table'); library(data.table)
+if (!require('corrplot')) install.packages('corrplot'); library(corrplot)
+if (!require('gridExtra')) install.packages('gridExtra'); library(gridExtra)
+if (!require('tibble')) install.packages('tibble'); library(tibble)
+if (!require('lares')) install.packages('lares'); library(lares)
+if (!require('mice')) install.packages('mice'); library(mice)
+if (!require('ggbiplot')) install_github("vqv/ggbiplot"); library(ggbiplot)
+```
+
+
+# Set de datos
+
+<span style="color:blue">El set de datos elegido se enmarca dentro del Women in Data Science (WiDS) Datathon 2020, un reto lanzado en 2020 por Kaggle con motivo de la Global WiDS Conference. En este dataset se incluyen registros sobre pacientes ingresados en la UCI durante un año en hospitales de Argentina, Australia, Nueva Zelanda, Sri Lanka, Brasil y Estados Unidos.</span>
+
+<span style="color:blue">Los registros que componen este set de datos fueron recogidos en el año 2020, por lo que los resultados que se obtengan se podrán trasladar fácilmente a la actualidad. El tema del que trata es de especial interés para médicos e investigadores clínicos. No obstante, al tratar sobre salud, es un tema que puede llegar a interesar a la población en general. Entre las variables incluidas en este set de datos se incluye el género (variable binaria), por lo que se podrá discernir fácilmente entre tendencias asociadas al género masculino o femenino.</span>
+
+<span style="color:blue">He seleccionado esta temática basándome, principalmente, en mi formación previa, graduado en Bioquímica y doctor en Biomedicina. El set de datos ha sido seleccionado debido a su complejidad y la fiabilidad de la fuente. Originalmente, en este juego de datos se incluyen un total de 91.713 registros, de los que se recogen valores para 186 características/variables. Estas variables, numéricas, binarias o categóricas, se clasifican en:</span>
+
++ <span style="color:blue">**Variables identificativas** (3 variables): Identificadores asociados al paciente o al hospital</span>
++ <span style="color:blue">**Variables demográficas** (16 variables): Edad, genero, peso, altura, etc.…</span>
++ <span style="color:blue">**Variables APACHE**  (40 variables): Variables asociadas al sistema de clasificación APACHE, un sistema para clasificar la severidad de una enfermedad.</span>
++ <span style="color:blue">**Variables vitales** (52 variables): Presión sanguínea, frecuencia respiratoria, temperatura etc... durante las primeras 24 horas.</span>
++ <span style="color:blue">**Variables de laboratorio** (76 variables): Niveles de calcio, bilirrubina, plaquetas, glucosa, etc... durante las primeras 24 horas.</span>
+
+<span style="color:blue">Debido al número elevado de variables, no se detallaran cada una de ellas de manera específica. No obstante, esta información puede ser consultada desde el archivo adjunto (dictionary).</span>
+
+
+# Análisis exploratorio.
+
+<span style="color:blue">El primer paso será la carga del archivo mediante la función **read.csv()**. Posteriormente comprobamos que el juego de datos ha sido cargado correctamente visualizando sus primeros registros con la función **head()**. Hacemos uso de la librería **DT** y su función **datatable()** para una mejor visualización en HTML.</span>
+
+<span style="color:blue">Los métodos de visualización usados para el análisis de este set de datos se pueden consultar en [Tableau](https://public.tableau.com/app/profile/pablo.roman/viz/FactoresderiesgoenlamortalidaddepacientesenUCI/Historia?publish=yes).</span>
+
+```{r load_data}
+path = 'set_original.csv'
+patientData = read.csv(path, row.names=NULL, sep = ",", na.strings=c("","NA"))
+datatable(head(patientData), extensions = "FixedColumns", options = list(dom= 't', scrollX= TRUE, fixedColumns = TRUE))
+```
+
+<span style="color:blue">Se examina por primera vez la estructura general del set de datos con la función **str()**.</span>
+
+```{r structure}
+structure = str(patientData)
+```
+
+<span style="color:blue">Como podemos comprobar, tenemos **186 variables** y **91.713 registros**. También vemos el tipo de cada variable y algunos de los valores que pueden tomar.</span>
+
+<span style="color:blue">Antes de seguir trabajando con estos datos, debemos tener claro el significado de cada una de estas variables. Esto se puede consultar en el archivo adjunto llamado dictionary.csv. En el siguiente apartado analizaremos estas variables de una manera más detenida.</span>
+
+# Tareas de limpieza, acondicionado, discretización y selección de características
+
+<span style="color:blue">El primer paso que tomaremos para preparar el juego de datos será la limpieza de datos o *data cleaning* y la selección de características. Veamos el número de valores nulos en cada una de nuestras variables.</span>
+
+```{r null_values}
+# Valores nulos
+colSums(is.na(patientData))
+```
+
+<span style="color:blue">Para ser sinceros, tantas variables abruman. Veamos primero las **variables categóricas**, analizando qué valores toman.</span>
+
+## Variables categóricas
+
+<span style="color:blue">Seleccionamos las variables categóricas mediante la función sapply() y observamos los valores que toman.</span>
+
+```{r categorical_values}
+is_char = sapply(patientData, is.character)
+patientData_char = patientData[, is_char]
+head(patientData_char)
+for(i in 1:ncol(patientData_char)){
+  print(sprintf("Valores para la columna %s:", colnames(patientData_char)[i]))
+  print(sort(unique(patientData_char[, i]))
+)}
+```
+
+<span style="color:blue">Podemos observar que en algunas de estas varibles existen categorías para un mismo valor. Como ejemplo, en la variable 'apache_2_bodysystem' existen las categorías 'Undefined diagnoses' y 'Undefined Diagnoses'. Esto debe ser corregido. De igual manera se corregiran (agruparán) en las otras variables las siguientes categorías:</span>
+
++ <span style="color:blue">En la columna 'hospital_admit_source' se agruparán los valores:</span>
+  + <span style="color:blue">'Other ICU' e 'ICU' en 'ICU'</span>
+  + <span style="color:blue">'ICU to SDU' y 'Step-Down Unit (SDU)' en 'Step-Down Unit (SDU)'</span>
+  + <span style="color:blue">'Other Hospital' y 'Other' en 'Other'</span>
+  + <span style="color:blue">'Recovery Room' y 'Observation' en 'Observation'</span>
++ <span style="color:blue">En la columna 'icu_type' se agruparán los valores 'CCU-CTICU', 'CTICU', 'Cardiac ICU', ya que referencian lo mismo.</span>
+
+```{r apache}
+# apache_2_bodysystem
+patientData["apache_2_bodysystem"][patientData["apache_2_bodysystem"] == "Undefined Diagnoses"] = "Undefined diagnoses"
+sort(unique(patientData[, "apache_2_bodysystem"]))
+# hospital_admit_source
+patientData["hospital_admit_source"][patientData["hospital_admit_source"] == "Other ICU"] = "ICU"
+patientData["hospital_admit_source"][patientData["hospital_admit_source"] == "ICU to SDU"] = "Step-Down Unit (SDU)"
+patientData["hospital_admit_source"][patientData["hospital_admit_source"] == "Other Hospital"] = "Other"
+patientData["hospital_admit_source"][patientData["hospital_admit_source"] == "Recovery Room"] = "Observation"
+sort(unique(patientData[, "hospital_admit_source"]))
+# icu_type
+patientData["icu_type"][patientData["icu_type"] == "CCU-CTICU" | patientData["icu_type"] == "Cardiac ICU" ] = "CTICU"
+sort(unique(patientData[, "icu_type"]))
+```
+
+<span style="color:blue">Una vez procesadas estas variables, podemos utilizar métodos de visualización para analizar la distribución de valores. Estas y otras visualizaciones, realizadas en Tableau, se analizarán en el video que acompaña a esta práctica.</span>
+
+```{r plot1}
+d1 = ggplot(patientData, aes(x=gender, fill=gender)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'gender'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..),
+             position=position_stack(vjust=0.5))
+d1
+```
+
+<span style="color:blue">Comprobamos que la distribución en cuanto a genero está balanceada.</span>
+
+```{r plot1_2}
+ggplot(patientData, 
+       aes(x = gender, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'gender' sobre hospital_death")
+```
+
+<span style="color:blue">No obstante, parece que el hecho de ser mujer (F) o hombre (M) no afecta en la variable "hospital_death".</span>
+
+```{r plot2}
+d2 = ggplot(patientData, aes(x=ethnicity, fill=ethnicity)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'ethnicity'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..),
+             position=position_stack(vjust=0.5))
+d2
+```
+```{r plot2_1}
+ggplot(patientData, 
+       aes(x = ethnicity, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'ethnicity' sobre hospital_death")
+```
+
+<span style="color:blue">Lo mismo ocurre con la variable "ethnicity", no parece afectar al hecho de que el paciente fallezca o no.</span>
+
+<span style="color:blue">En este juego de datos nos encontramos con dos variables categóricas llamadas "apache_2_bodysystem" y "apache_3j_bodysystem". Ambas hacen referencia al diagnóstico a la entrada del paciente en UCI, una de acuerdo a APACHE II y la otra de acuerdo a APACHE III, respectivamente.</span>
+
+<span style="color:blue">APACHE (Acute Physiology and Chronic Health Evaluation) es un sistema de puntuación utilizado en UCI para valorar la severidad de una enfermedad y el riesgo de muerte en las primeras 24 horas de la entrada del paciente en UCI. Este parámetro puede tomar valores entre el 0 y el 71, entendiéndose un mayor riesgo cuanto mayor sea este valor.</span>
+
+<span style="color:blue">APACHE III, desarrollado en 1990, es un sistema basado en APACHE II, desarrollado en 1985. Debido a esto, esperamos una alta correlación entre ambas variables. De acuerdo a un artículo publicado en 2001 en el que se valoraban ambos sistemas [1], se concluyó que APACHE III era un mejor estimador para el riesgo de mortalidad en UCI.</span>
+```{r head1}
+head(patientData[, c("apache_2_bodysystem","apache_3j_bodysystem")], 15)
+```
+<span style="color:blue">Como vemos, solo hay cambios menores, como "Neurologic" (APACHE II) a "Neurological" (APACHE III) o reclasificiaciones, como de "Cardiovascular" a "Sepsis". Esta reclasificación tiene sentido a nivel clínico, ya que una sepsis puede conllevar a una disfunción cardíaca. Eliminaremos la columna "apache_2_bodysystem" y analizaremos la variable "apache_3j_bodysystem".</span>
+
+```{r drop2_plot3}
+patientData = patientData[, !(names(patientData) %in% "apache_2_bodysystem")]
+
+d3 = ggplot(patientData, aes(x=apache_3j_bodysystem, fill = apache_3j_bodysystem)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'apache_3j_bodysystem'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..),
+             position=position_stack(vjust=0.5))
+d3
+```
+
+```{r plot3_1}
+ggplot(patientData, 
+       aes(x = apache_3j_bodysystem, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'apache_3j_bodysystem' sobre hospital death")
+```
+
+<span style="color:blue">En este caso vemos como claramente la variable "apache_3j_bodysystem" influye en "hospital_death".</span>
+
+<span style="color:blue">Exploremos el caso de la variable "icu_type", que representa el tipo de cuidados que puede ofrecer la UCI.</span>
+```{r plot4}
+d4 = ggplot(patientData, aes(x=icu_type, fill=icu_type)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'icu_type'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..),
+             position=position_stack(vjust=0.5))
+d4
+```
+```{r plot4_1}
+ggplot(patientData, 
+       aes(x = icu_type, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'icu_type' sobre hospital_death")
+```
+
+<span style="color:blue">Vemos como hospital_death también se ve afectada por la variable icu_type. Exploremos finalmente las variables "hospital_admit_source", "icu_admit_source" y "icu_stay_type".</span>
+
+```{r plot_hospital_admit_source}
+ggplot(patientData, 
+       aes(x = hospital_admit_source, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'hospital_admit_source' sobre hospital_death")
+```
+
+```{r plot_icu_admit_source}
+ggplot(patientData, 
+       aes(x = icu_admit_source, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'icu_admit_source' sobre hospital_death")
+```
+
+```{r plot_icu_stay_type}
+ggplot(patientData, 
+       aes(x = icu_stay_type, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'icu_stay_type' sobre hospital_death")
+```
+
+<span style="color:blue">Comprobamos como "hospital_admit_source" y "icu_admit_source" afectan a hospital_death. Vemos el caso contrario en la variable "icu_stay_type", que parece no afectar en el porcentaje de muertes.</span>
+
+```{r drop3}
+patientData = patientData[, !(names(patientData) %in% "icu_stay_type")]
+```
+
+
+## Variables numéricas
+
+### Valores únicos y variables identificativas
+
+<span style="color:blue">Algunas de las características/variables de este juego de datos pueden ser eliminadas ya que no aportarán nada. Estas variables son aquellas que solo presentan un valor para todos los registros, o las variables identificativas del paciente ("patient_id" y "encounter_id").</span>
+
+```{r single_value}
+# Variables con un solo valor
+sapply(patientData, n_distinct)[sapply(patientData, n_distinct) == 1]
+```
+
+<span style="color:blue">Pasamos a eliminar las columnas "patient_id", "encounter_id" y "readmission_status".</span>
+
+```{r drop4}
+patientData = patientData[, !(names(patientData) %in% c("patient_id", "encounter_id", "readmission_status"))]
+```
+
+### Alta proporción de valores nulos 
+
+<span style="color:blue">Por convención, otras variables que pueden ser descartadas son aquellas que incluyen más del 80% de valores nulos (NA). Observemos la proporción de valores nulos para cada una de las variables.</span>
+
+```{r percent_null_values}
+naPerCent = sort(colSums(is.na(patientData)/length(patientData$bmi)*100), decreasing = TRUE)
+names(naPerCent[naPerCent >= 80])
+# Variables a descartar
+toDrop = names(naPerCent[naPerCent >= 80])
+```
+<span style="color:blue">Como podemos comprobar, todas las variables con más de un 80 por ciento de valores nulos son variables "h1". Estas variables hacen referencia al valor máximo tomado por un parámetro clínico en la primera hora del paciente en UCI. Por ejemplo, "h1_calcium_max" hace referencia a la concentración máxima de calcio en la primera hora de estancia del paciente en UCI. Descartamos estas variables.</span>
+
+```{r drop5}
+patientData = patientData[, !(names(patientData) %in% toDrop)]
+```
+
+### Variables demográficas
+
+<span style="color:blue">Comprobemos ahora la distribución de las **Variables demográficas** numéricas (edad, peso, altura, IMC, etc...). Estudiemos primero la variable "Age".</span>
+
+```{r distribution_age, message=FALSE, warning=FALSE}
+ggplot(patientData,aes(x=age, fill=as.factor(hospital_death))) + geom_density(alpha=0.25) +
+  ggtitle("Distribución 'Age' con respecto a 'hospital_death'")
+```
+
+<span style="color:blue">Hablando de la variable edad (Age), podemos comprobar como la mayoría de registros son de pacientes mayores de 50. Además, comprobamos una distribución diferente en aquellos pacientes que han fallecido, existiendo una proporción mayor de pacientes con edad avanzada.</span>
+
+<span style="color:blue">Pasemos a ver la distribución de las variables peso (weight) y altura (height).</span>
+
+```{r distribution_weight, message=FALSE, warning=FALSE}
+# Peso
+plot_peso = ggplot(patientData,aes(x=weight, fill=as.factor(hospital_death))) + geom_density(alpha=0.25) +
+  ggtitle("Distribución 'weight' con respecto a 'hospital_death'")
+# Altura
+plot_altura = ggplot(patientData,aes(x=height, fill=as.factor(hospital_death))) + geom_density(alpha=0.25) +
+  ggtitle("Distribución 'height' con respecto a 'hospital_death'")
+
+grid.arrange(plot_peso, plot_altura, nrow = 2)
+```
+
+<span style="color:blue">Vemos como ambas variables no parecen tomar valores anómalos. Además, parece que la distribución no varía demasiado cuando analizamos registros de fallecidos y no fallecidos.</span>
+
+#### Discretizción de la variable "bmi
+
+<span style="color:blue">Veamos qué ocurre con la variable "bmi" (IMC), que depende de las dos primeras.</span>
+
+```{r distribution_bmi, message=FALSE, warning=FALSE}
+# BMI
+ggplot(patientData,aes(x=bmi, fill=as.factor(hospital_death))) + geom_density(alpha=0.25) +
+  ggtitle("Distribución 'bmi' con respecto a 'hospital_death'")
+```
+
+<span style="color:blue">No parece que la distribución varíe demasiado cuando analizamos registros de fallecidos y no fallecidos. No obstante, esta variable es ideal para su discretización sabiendo que dependiento del valor que tome podremos clasificar los pacientes en peso bajo, normal, sobrepeso u obeso. Pasemos a ello.</span>
+
+```{r categorize_bmi}
+patientData$bmi_cat = cut(patientData$bmi,
+                       breaks=c(0, 18.5, 24.9, 29.9, max(patientData$bmi, na.rm = TRUE)),
+                       labels=c('Bajo', 'Normal', 'Sobrepeso', 'Obeso'))
+head(patientData[, c("bmi", "bmi_cat")])
+```
+
+<span style="color:blue">Comprobemos si ha cambiado algo al discretizar la variable "bmi".</span>
+
+```{r plot_bmi_cat}
+ggplot(patientData, aes(x=bmi_cat, fill=bmi_cat)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'bmi_cat'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..), position=position_stack(vjust=0.5))
+
+ggplot(patientData, 
+       aes(x = bmi_cat, 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'bmi_cat' sobre hospital_death")
+```
+
+<span style="color:blue">Tras discretizar la variable "bmi" vemos como algunas de las categorías, como el caso de un IMC bajo, está relacionada con la proporción de fallecidos. Por tanto, esta variable nos dará más información que las variables peso, altura o la propia variable "bmi".</span>
+
+```{r drop_6}
+patientData = patientData[, !(names(patientData) %in% c("height", "bmi"))]
+```
+
+<span style="color:blue">Estudiemos las variables demográficas que nos quedan: 'elective_surgery' y 'pre_icu_los_days'.</span>
+
+<span style="color:blue">La variable 'elective_surgery' es una variable binaria que refleja si el paciente ha sido admitido por el hospital para una operación electiva, es decir, una operación no urgente.</span>
+
+```{r elective_surgery}
+ggplot(patientData, aes(x=as.factor(elective_surgery), fill=as.factor(elective_surgery))) + geom_bar() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Distribución 'elective_surgery'") + 
+  stat_count(geom = "text", colour = "black", size = 3.5, aes(label = ..count..), position=position_stack(vjust=0.5))
+
+ggplot(patientData, 
+       aes(x = as.factor(elective_surgery), 
+           fill = as.factor(hospital_death))) + 
+  geom_bar(position = "fill") +
+  labs(y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  ggtitle("Efecto de 'elective_surgery' sobre hospital_death")
+```
+
+<span style="color:blue">Vemos una relación clara entre la variable 'elective_surgery' y la proporción de fallecidos. Cuando un paciente no es admitido para este tipo de operación, un 9% muere, mientras que para el caso contrario solo encontramos un 3%. Esto es lógico, pues aquellos pacientes admitidos para una operación electiva deben padecer enfermedades no demasiado urgentes.</span>
+
+<span style="color:blue">Por último veremos la variable 'pre_icu_los_days', que nos informa acerca de los días que pasan entre la llegada del paciente la hospital y el ingreso en la UCI.</span>
+
+```{r pre_icu_los_days}
+ggplot(patientData,aes(x=pre_icu_los_days, fill=as.factor(hospital_death))) + geom_density(alpha=0.25) +
+  ggtitle("Distribución 'pre_icu_los_days' con respecto a 'hospital_death'")
+```
+
+<span style="color:blue">En el caso de esta variable parece que encontramos *outliers*, ya que tenemos valores negativos para una variable que representa días.</span>
+```{r drop_7}
+# Numero de columnas con valores negativos de tiempo
+nrow(patientData[patientData$pre_icu_los_days < 0, ])
+```
+<span style="color:blue">Descartaremos estos registros dado que no representan demasiados (778) sobre el total.</span>
+
+```{r drop_negative_rows}
+patientData = patientData %>% filter(pre_icu_los_days > 0)
+```
+
+## Imputación de valores nulos y generación de dataset final
+
+<span style="color:blue">Tras la exploración de los datos, acondicionaremos las variables seleccionadas para que generar un set de datos sin valores nulos. Primero imputaremos las variables numéricas. La función para guardar este dataset estará comentada para acelerar la ejecución del script.</span>
+
+```{r imputacion}
+# Set de datos - valores nulos
+# write.csv(patientData, "not_imputed_patientData2.csv", row.names = FALSE)
+# Variables categóricas
+cat_vars = c("hospital_id", "hospital_admit_source","icu_admit_source", "icu_id","icu_type", "apache_3j_bodysystem", "bmi_cat", "gender")
+# Selección de variables numéricas
+patientData_num = patientData[, !(names(patientData) %in% cat_vars)]
+```
+
+<span style="color:blue">Usaremos la función mice(), de la librería con este mismo nombre, para imputar los valores de nuestras variables numéricas. La función está comentada ya que, debido al número de variables, tarda demasiado en ejecutarse. Por tanto, guardaremos posteriormente el set de datos de variables numéricas en un csv. Este será cargado para continuar la práctica.</span>
+```{r save_imputed_csv}
+# Tarda bastante tiempo, por ello está comentado.
+# imputed_Data = mice(patientData_num, m=1, maxit = 3, method = 'pmm', seed = 500)
+# imputed_patientData_num = complete(imputed_Data,1)
+# write.csv(imputed_patientData_num, "imputed_patientData_num_v2.csv", row.names = FALSE)
+
+# Cargamos el fichero generado para seguir con el script.
+imputed_patientData_num = read.csv("imputed_patientData_num_v2.csv", sep = ",")
+imputed_patientData_num = imputed_patientData_num[, !(names(imputed_patientData_num) %in% "paco2_for_ph_apache")]
+```
+
+<span style="color:blue">Una vez imputados las variables numéricas, pasamos a imputar los valores nulos en las variables categóricas. Para ello utilizaremos el valor más común en cada una de ellas.</span>
+
+```{r categorical_mode}
+patientData_cat = patientData[, (names(patientData) %in% cat_vars)]
+sort(colSums(is.na(patientData[, cat_vars])/length(patientData[, cat_vars]$hospital_id)*100), decreasing = TRUE)
+# hospital_admit_source
+values_has = unique(patientData_cat$hospital_admit_source[!is.na(patientData_cat$hospital_admit_source)])
+mode_has = values_has[which.max(tabulate(match(patientData_cat$hospital_admit_source, values_has)))]
+patientData_cat$hospital_admit_source[is.na(patientData_cat$hospital_admit_source)] = mode_has
+# bmi_cat
+values_bmi = unique(patientData_cat$bmi_cat[!is.na(patientData_cat$bmi_cat)])
+mode_bmi = values_bmi[which.max(tabulate(match(patientData_cat$bmi_cat, values_bmi)))]
+patientData_cat$bmi_cat[is.na(patientData_cat$bmi_cat)] = mode_bmi
+# apache_3j_bodysystem
+values_apache = unique(patientData_cat$apache_3j_bodysystem[!is.na(patientData_cat$apache_3j_bodysystem)])
+mode_apache = values_apache[which.max(tabulate(match(patientData_cat$apache_3j_bodysystem, values_apache)))]
+patientData_cat$apache_3j_bodysystem[is.na(patientData_cat$apache_3j_bodysystem)] = mode_apache
+# icu_admit_source
+values_icu = unique(patientData_cat$icu_admit_source[!is.na(patientData_cat$icu_admit_source)])
+mode_icu = values_icu[which.max(tabulate(match(patientData_cat$icu_admit_source, values_icu)))]
+patientData_cat$icu_admit_source[is.na(patientData_cat$icu_admit_source)] = mode_icu
+sort(colSums(is.na(patientData_cat)/length(patientData_cat$bmi_cat)*100), decreasing = TRUE)
+# gender
+values_gender = unique(patientData_cat$gender[!is.na(patientData_cat$gender)])
+mode_gender = values_gender[which.max(tabulate(match(patientData_cat$gender, values_gender)))]
+patientData_cat$gender[is.na(patientData_cat$gender)] = mode_gender
+patientData_cat
+```
+
+<span style="color:blue">Imputados ambos tipos de variables, podemos guardar el set de datos final en un fichero llamado "imputed_patientData.csv".</span>
+
+```{r bind}
+imputed_patientData = cbind(imputed_patientData_num, patientData_cat)
+# Comentado para acelerar ejecución
+# write.csv(imputed_patientData, "imputed_patientData_v3.csv", row.names = FALSE)
+```
